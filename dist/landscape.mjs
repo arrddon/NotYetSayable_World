@@ -47,8 +47,8 @@ export class LuminousPoints {
 
 const distance=(a,b)=>Math.hypot((a[0]-b[0])*111320*Math.cos(a[1]*Math.PI/180),(a[1]-b[1])*111320);
 const mix=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t];
-export function urbanTexture(map,{mobile=false}={}){
- const budget=mobile?38000:115000,points=[],seen=new Set(),center=map.getCenter();
+export function urbanTexture(map,{mobile=false,density=1}={}){
+ const budget=Math.round(Math.min(mobile?52000:160000,(mobile?38000:115000)*density)),points=[],seen=new Set(),center=map.getCenter();
  let seed=1297;const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
  const push=(position,height=1,bright=false)=>{
   if(points.length>=budget)return;

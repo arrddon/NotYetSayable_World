@@ -1,16 +1,18 @@
 import {THEMES,CITIES,validateArchive,selectRecords,summarize,pointCollection,makeSpire,safeDataPath} from './core.mjs';
 import {LuminousPoints,urbanTexture} from './landscape.mjs';
 import {BloomPass} from './bloom.mjs';
+import {loadGraphics,setupGraphicsPanel} from './graphics-panel.mjs';
 
 const $=id=>document.getElementById(id);
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const graphics=loadGraphics();
 const state={lang:localStorage.getItem('nys-language')==='en'?'en':'ko',archive:null,city:'london',theme:null,keyword:null,selection:null,area:null,records:[],recordIndex:0,map:null,mapReady:false,loadBusy:false,lastSpireSignature:'',refreshing:false};
 const translations={
  ko:{subtitle:'아직 말해지지 않은 집의 풍경',intro:'기억과 지금, 그리고 앞으로의 집.<br>각자의 상상이 만나 하나의 풍경이 됩니다.',about:'작품 소개',goto:'GO TO',world:'전체',mapCaption:'우리가 살고 싶은 곳에 모이는 이야기',collective:'COLLECTIVE IMAGINARIES',common:'공통으로 그리는 집',keywords:'이곳에 모인 단어들',details:'개별 상상 들여다보기',showArea:'지역 전체 보기',interpretation:'참여자의 표현에서 재해석한 키워드입니다.',panelFooter:'하나의 답보다,<br>함께 상상할 수 있는 가능성.',themes:'THEMES',empty:'이 풍경에는 아직 기록이 없습니다.<br>지도를 이동해 다른 상상을 찾아보세요.',returnLondon:'런던으로 돌아가기',fallback:'배경 지도를 연결하지 못했습니다. 키워드 탐색은 계속 사용할 수 있습니다.',retry:'지도 다시 연결',loading:'풍경을 불러오는 중',updating:'새로운 상상을 연결하는 중',noChange:'현재 공개된 최신 데이터입니다.',updated:'새로운 상상이 풍경에 더해졌습니다.',updateFailed:'갱신을 확인하지 못했습니다. 마지막 데이터를 표시합니다.',demoStatus:'합성 데이터로 살펴보는 첫 풍경',liveStatus:'공개 키워드 아카이브',areaNote:'이곳에서 살기를 상상한 사람들의 공통점',worldNote:'서로 다른 곳에서 그리는 미래의 집',filtered:'선택한 키워드의 상상',records:'개의 상상',of:'명 중',mentions:'명이 공유',past:'PAST / 기억',present:'PRESENT / 지금',future:'FUTURE / 상상',filteredTitle:'선택한 주제',resetFilter:'모든 주제 보기',all:'모든 주제',selected:'선택한 군집',demoLabel:'DEMO DATA',liveLabel:'ARCHIVE',detailEmpty:'표시할 기록이 없습니다.',city:'도시',mapRetry:'지도 연결을 다시 시도합니다.',aboutCopy:'<p>집은 어디에 있을까요. 우리가 기억하는 곳, 지금 머무는 곳, 그리고 언젠가 살고 싶은 곳 사이에서 집의 의미는 계속 만들어집니다.</p><p>Not Yet Sayable: Latent Homes는 각자의 경험이 서로 만나 공동의 상상으로 자라나는 참여형 작업입니다. 하나의 상상은 지도 위의 작은 흔적이 되고, 다른 이들의 흔적과 함께 새로운 풍경을 이룹니다.</p><p>지도는 참여자가 선택한 <strong>미래에 살고 싶은 곳</strong>을 나타냅니다. 군집을 선택해 공통 주제를 살펴보고, 개별 기록의 기억·현재·미래 키워드를 탐색해 보세요.</p><p class="demo-explanation">현재는 디자인과 탐색 방식을 검토하기 위한 프로토타입입니다. 표시된 모든 기록과 수치는 합성 데이터이며 실제 참여자의 응답이 아닙니다. 원문과 손글씨 이미지는 공개하지 않습니다.</p>'},
  en:{subtitle:'A collective map of imagined homes',intro:'Memories, present lives, and homes yet to be.<br>Individual imaginings become a shared landscape.',about:'About the work',goto:'GO TO',world:'World',mapCaption:'Stories gather where we imagine living',collective:'COLLECTIVE IMAGINARIES',common:'The homes we imagine together',keywords:'Words gathering here',details:'Look into individual imaginings',showArea:'Back to the area',interpretation:'Keywords interpreted from participants’ expressions.',panelFooter:'Beyond a single answer,<br>the possibility of imagining together.',themes:'THEMES',empty:'No imaginings in this view yet.<br>Move the map to discover another landscape.',returnLondon:'Return to London',fallback:'The basemap could not connect. You can still explore the keywords.',retry:'Reconnect map',loading:'Gathering the landscape',updating:'Connecting new imaginings',noChange:'You are viewing the latest published data.',updated:'New imaginings have joined the landscape.',updateFailed:'Could not check for updates. Showing the last loaded data.',demoStatus:'A first landscape, explored with synthetic data',liveStatus:'Published keyword archive',areaNote:'Shared by people imagining a future here',worldNote:'Future homes imagined across different places',filtered:'Imaginings with this keyword',records:' imaginings',of:' of ',mentions:' share this',past:'PAST / Memories',present:'PRESENT / Now',future:'FUTURE / Imagined',filteredTitle:'Selected theme',resetFilter:'Show all themes',all:'All themes',selected:'Selected cluster',demoLabel:'DEMO DATA',liveLabel:'ARCHIVE',detailEmpty:'No records in this view.',city:'City',mapRetry:'Reconnecting the map.',aboutCopy:'<p>Where is home? Between places we remember, places we inhabit, and places we hope to live, the meaning of home is continually being formed.</p><p>Not Yet Sayable: Latent Homes is a participatory work in which individual experiences meet and grow into collective imagination. Each imagining becomes a trace in the landscape, taking shape alongside the traces of others.</p><p>The map locates the places where participants <strong>imagine living in the future</strong>. Select a cluster to discover shared themes, then explore the past, present, and future keywords of individual contributions.</p><p class="demo-explanation">This prototype uses entirely synthetic records and counts to explore the design and interactions. No real participant responses are displayed. Original writing and handwritten images are kept private.</p>'},
 };
 const t=key=>translations[state.lang][key]||key;
-let toastTimer,moveTimer,loadTimer,sourceUpdateTimer,textureTimer,urbanLayer,lightLayer,lastTextureKey='';
+let toastTimer,moveTimer,loadTimer,sourceUpdateTimer,textureTimer,graphicsTimer,urbanLayer,lightLayer,graphicsPanel,lastTextureKey='';
 function toast(message){$('toast').textContent=message;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,3200);}
 function loading(active,label='loading'){$('loading-label').textContent=t(label);$('map-loading').classList.toggle('inactive',!active);$('map-loading').setAttribute('aria-hidden',String(!active));}
 function text(tag,value,className){const e=document.createElement(tag);e.textContent=value;if(className)e.className=className;return e;}
@@ -26,6 +28,7 @@ function applyLanguage(){
  document.querySelectorAll('[data-city]').forEach(button=>button.textContent=cityName(button.dataset.city));
  $('demo-label').textContent=state.archive?.synthetic===false?t('liveLabel'):t('demoLabel');
  $('data-status').textContent=state.archive?.synthetic===false?t('liveStatus'):t('demoStatus');
+ graphicsPanel?.setLanguage(state.lang);
  renderLegend();renderPanel();
 }
 function renderLegend(){
@@ -158,7 +161,7 @@ async function initMap(){
   const style=nightStyle(await response.json());
   const city=CITIES.find(c=>c.id===state.city)||CITIES[0];
   const mobile=innerWidth<=760;
-  const map=new maplibregl.Map({container:'map',style,center:city.center,zoom:city.zoom-(mobile?.65:0),bearing:city.bearing,pitch:city.pitch,antialias:true,maxZoom:18,minZoom:1.3,maxPitch:65,attributionControl:false,renderWorldCopies:false,canvasContextAttributes:{antialias:true},fadeDuration:reducedMotion?0:350});
+  const map=new maplibregl.Map({container:'map',style,center:city.center,zoom:city.zoom-(mobile?.65:0),bearing:city.bearing,pitch:90-graphics.cameraElevation,antialias:true,maxZoom:18,minZoom:1.3,maxPitch:65,attributionControl:false,renderWorldCopies:false,canvasContextAttributes:{antialias:true},fadeDuration:reducedMotion?0:350});
   state.map=map;
   map.addControl(new maplibregl.AttributionControl({compact:true,customAttribution:'Synthetic archive'}),'bottom-right');
   map.on('load',()=>{
@@ -204,18 +207,27 @@ function installLayers(){
  map.addLayer({id:'archive-core',type:'circle',source:'archive',paint:{'circle-radius':['interpolate',['linear'],count,1,3,8,5,40,8],'circle-color':'#fff3d5','circle-opacity':.95,'circle-blur':.2,'circle-pitch-alignment':'map','circle-stroke-color':'#fff2d2','circle-stroke-width':.5}});
  map.addLayer({id:'archive-ring',type:'circle',source:'archive',filter:['has','point_count'],paint:{'circle-radius':5,'circle-color':'#174aa4','circle-opacity':.8,'circle-stroke-color':'#fff9e7','circle-stroke-opacity':1,'circle-stroke-width':1.1,'circle-pitch-alignment':'map'}});
  map.addLayer({id:'selected-points',type:'circle',source:'archive',filter:['in',['get','id'],['literal',[]]],paint:{'circle-radius':11,'circle-color':'#ffffff','circle-opacity':0,'circle-stroke-color':'#ffffff','circle-stroke-width':1.5}});
- map.addLayer(new BloomPass());
+ map.addLayer(new BloomPass(graphics));
+}
+function applyGraphics(changed){
+ if(!state.mapReady)return;
+ if(changed.includes('cameraElevation'))state.map.easeTo({pitch:90-graphics.cameraElevation,duration:0});
+ if(changed.some(key=>['pillarHeight','pillarDensity','clusterSpread'].includes(key))){
+  clearTimeout(graphicsTimer);graphicsTimer=setTimeout(()=>{state.lastSpireSignature='';updateSpireSource();},140);
+ }
+ if(changed.includes('particleDensity')){lastTextureKey='';scheduleTexture();}
+ state.map.triggerRepaint();
 }
 function scheduleTexture(){
  if(!state.mapReady||!urbanLayer||state.map.isMoving())return;
  const map=state.map,c=map.getCenter();
- const key=[c.lng.toFixed(3),c.lat.toFixed(3),map.getZoom().toFixed(1),map.getBearing().toFixed(0),map.getPitch().toFixed(0),map.areTilesLoaded()].join(':');
+ const key=[c.lng.toFixed(3),c.lat.toFixed(3),map.getZoom().toFixed(1),map.getBearing().toFixed(0),map.getPitch().toFixed(0),map.areTilesLoaded(),graphics.particleDensity].join(':');
  if(key===lastTextureKey)return;
  clearTimeout(textureTimer);textureTimer=setTimeout(()=>{
   if(!state.mapReady||map!==state.map||map.isMoving())return;
   lastTextureKey=key;
   if(map.getZoom()<11.5){urbanLayer.setPoints([]);return;}
-  try{urbanLayer.setPoints(urbanTexture(map,{mobile:innerWidth<=760}));}catch(error){console.warn('Surface texture unavailable:',error.message);}
+  try{urbanLayer.setPoints(urbanTexture(map,{mobile:innerWidth<=760,density:graphics.particleDensity}));}catch(error){console.warn('Surface texture unavailable:',error.message);}
  },350);
 }
 function updatePointSource(){
@@ -229,7 +241,7 @@ function updateSpireSource(){
  const map=state.map,zoom=map.getZoom();
  const features=map.querySourceFeatures('archive');const unique=new Map();
  for(const f of features)unique.set(f.properties.cluster?`c${f.properties.cluster_id}`:`p${f.properties.id}`,f);
- const signature=[state.archive?.version,state.theme,Math.floor(zoom*2),...[...unique.keys()].sort()].join('|');
+ const signature=[state.archive?.version,state.theme,Math.floor(zoom*2),graphics.pillarHeight,graphics.pillarDensity,graphics.clusterSpread,...[...unique.keys()].sort()].join('|');
  if(signature===state.lastSpireSignature)return;
  state.lastSpireSignature=signature;
  const result=[],lights=[];
@@ -237,20 +249,20 @@ function updateSpireSource(){
  for(const [key,f] of unique){
   const count=Number(f.properties.point_count)||1,color=f.properties.cluster?'#fff0c6':f.properties.color;
   const center=f.geometry.coordinates;
-  const quantity=Math.min(innerWidth<=760?105:190,Math.max(12,Math.round(count*6.5)));
+  const quantity=Math.min(innerWidth<=760?180:360,Math.max(6,Math.round(count*6.5*graphics.pillarDensity)));
   let seed=[...key].reduce((s,c)=>Math.imul(s,31)+c.charCodeAt(0)|0,1)>>>0;
   const rand=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
   for(let i=0;i<quantity;i++){
-   const angle=rand()*Math.PI*2,spread=(65+Math.sqrt(count)*34)*scale,normalized=i?Math.sqrt(rand()):0,dist=normalized*spread;
+   const angle=rand()*Math.PI*2,spread=(65+Math.sqrt(count)*34)*scale*graphics.clusterSpread,normalized=i?Math.sqrt(rand()):0,dist=normalized*spread;
    const point=[center[0]+Math.cos(angle)*dist/(111320*Math.cos(center[1]*Math.PI/180)),center[1]+Math.sin(angle)*dist/111320];
-   const height=(25+(1-normalized**1.5)*(100+rand()*310)+rand()*45)*scale;
+   const height=(25+(1-normalized**1.5)*(100+rand()*310)+rand()*45)*scale*graphics.pillarHeight;
    const tint=rand();
    result.push({type:'Feature',geometry:makeSpire(point,height,(3+rand()*6)*scale),properties:{height,color:count>1?(tint>.65?'#fff8e4':tint>.3?'#ffe8b2':'#f8ce79'):color}});
    for(let j=0;j<5;j++)lights.push({position:[point[0]+(rand()-.5)*.00012*scale,point[1]+(rand()-.5)*.00008*scale],height:height*(j?rand():1)+4,color:[1,.88+rand()*.12,.62+rand()*.3],alpha:.7+rand()*.3,size:1.4+rand()*2.3});
    if(i%2===0)lights.push({position:point,height:height+20+rand()*70*scale,color:[.85,.92,1],alpha:.8,size:1+rand()*1.5});
   }
   if(count>1){
-   const beaconHeight=(370+Math.sqrt(count)*37)*scale;
+   const beaconHeight=(370+Math.sqrt(count)*37)*scale*graphics.pillarHeight;
    for(let k=0;k<4;k++){
     const point=[center[0]+(rand()-.5)*.00028*scale,center[1]+(rand()-.5)*.00016*scale],height=beaconHeight*(1-k*.12);
     result.push({type:'Feature',geometry:makeSpire(point,height,(k?2.6:4)*scale),properties:{height,color:'#fffbed'}});
@@ -301,7 +313,7 @@ function goToCity(id){
  const city=CITIES.find(c=>c.id===id);if(!city)return;
  state.city=id;state.selection=null;state.area=null;state.keyword=null;state.recordIndex=0;
  document.querySelectorAll('.city-button').forEach(b=>b.classList.toggle('active',b.dataset.city===id));
- if(state.mapReady)state.map.flyTo({center:city.center,zoom:city.zoom-(innerWidth<=760?.65:0),bearing:city.bearing,pitch:city.pitch,padding:mapPadding(),duration:reducedMotion?0:1900,essential:!reducedMotion});
+ if(state.mapReady)state.map.flyTo({center:city.center,zoom:city.zoom-(innerWidth<=760?.65:0),bearing:city.bearing,pitch:90-graphics.cameraElevation,padding:mapPadding(),duration:reducedMotion?0:1900,essential:!reducedMotion});
  else renderPanel();
 }
 function openDetails(open){
@@ -331,6 +343,7 @@ function setupEvents(){
   if(record&&state.mapReady){state.selection=new Set([record.id]);state.area=record.area;state.keyword=null;state.map.flyTo({center:record.position,zoom:15.5,padding:mapPadding(),duration:reducedMotion?0:1500});renderPanel();openDetails(true);}
  });
 }
+graphicsPanel=setupGraphicsPanel({settings:graphics,onChange:applyGraphics,lang:state.lang});
 setupEvents();applyLanguage();
 await refreshArchive({initial:true});
 await initMap();
