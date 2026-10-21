@@ -1,4 +1,5 @@
 import {THEMES,CITIES,validateArchive,selectRecords,summarize,pointCollection,makeSpire,safeDataPath} from './core.mjs';
+import {LuminousPoints,urbanTexture} from './landscape.mjs';
 
 const $=id=>document.getElementById(id);
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -8,9 +9,9 @@ const translations={
  en:{subtitle:'A collective map of imagined homes',intro:'Memories, present lives, and homes yet to be.<br>Individual imaginings become a shared landscape.',about:'About the work',goto:'GO TO',world:'World',mapCaption:'Stories gather where we imagine living',collective:'COLLECTIVE IMAGINARIES',common:'The homes we imagine together',keywords:'Words gathering here',details:'Look into individual imaginings',showArea:'Back to the area',interpretation:'Keywords interpreted from participants’ expressions.',panelFooter:'Beyond a single answer,<br>the possibility of imagining together.',themes:'THEMES',empty:'No imaginings in this view yet.<br>Move the map to discover another landscape.',returnLondon:'Return to London',fallback:'The basemap could not connect. You can still explore the keywords.',retry:'Reconnect map',loading:'Gathering the landscape',updating:'Connecting new imaginings',noChange:'You are viewing the latest published data.',updated:'New imaginings have joined the landscape.',updateFailed:'Could not check for updates. Showing the last loaded data.',demoStatus:'A first landscape, explored with synthetic data',liveStatus:'Published keyword archive',areaNote:'Shared by people imagining a future here',worldNote:'Future homes imagined across different places',filtered:'Imaginings with this keyword',records:' imaginings',of:' of ',mentions:' share this',past:'PAST / Memories',present:'PRESENT / Now',future:'FUTURE / Imagined',filteredTitle:'Selected theme',resetFilter:'Show all themes',all:'All themes',selected:'Selected cluster',demoLabel:'DEMO DATA',liveLabel:'ARCHIVE',detailEmpty:'No records in this view.',city:'City',mapRetry:'Reconnecting the map.',aboutCopy:'<p>Where is home? Between places we remember, places we inhabit, and places we hope to live, the meaning of home is continually being formed.</p><p>Not Yet Sayable: Latent Homes is a participatory work in which individual experiences meet and grow into collective imagination. Each imagining becomes a trace in the landscape, taking shape alongside the traces of others.</p><p>The map locates the places where participants <strong>imagine living in the future</strong>. Select a cluster to discover shared themes, then explore the past, present, and future keywords of individual contributions.</p><p class="demo-explanation">This prototype uses entirely synthetic records and counts to explore the design and interactions. No real participant responses are displayed. Original writing and handwritten images are kept private.</p>'},
 };
 const t=key=>translations[state.lang][key]||key;
-let toastTimer,moveTimer,loadTimer,sourceUpdateTimer;
+let toastTimer,moveTimer,loadTimer,sourceUpdateTimer,textureTimer,urbanLayer,lightLayer,lastTextureKey='';
 function toast(message){$('toast').textContent=message;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,3200);}
-function loading(active,label='loading'){$('loading-label').textContent=t(label);$('map-loading').classList.toggle('inactive',!active);}
+function loading(active,label='loading'){$('loading-label').textContent=t(label);$('map-loading').classList.toggle('inactive',!active);$('map-loading').setAttribute('aria-hidden',String(!active));}
 function text(tag,value,className){const e=document.createElement(tag);e.textContent=value;if(className)e.className=className;return e;}
 function cityName(id){const city=CITIES.find(c=>c.id===id);return city?city[state.lang]:t('selected');}
 
@@ -134,22 +135,22 @@ function nightStyle(style){
  style.layers=style.layers.filter(l=>l.type!=='symbol'||/^place-(city|town|country|state)/.test(l.id));
  for(const layer of style.layers){
   layer.paint ||= {};
-  if(layer.type==='background')layer.paint={'background-color':'#082960'};
+  if(layer.type==='background')layer.paint={'background-color':'#06338b'};
   if(layer.type==='fill'){
    const water=/water/.test(layer.id),building=/building/.test(layer.id),park=/park|wood|grass/.test(layer.id);
-   layer.paint={'fill-color':water?'#031746':building?'#205496':park?'#0c3980':'#103b7c','fill-opacity':water?1:building?.75:.48};
+   layer.paint={'fill-color':water?'#031b53':building?'#1b59c2':park?'#103e91':'#0b3590','fill-opacity':water?1:building?.65:.45};
   }
   if(layer.type==='line'){
    const road=/road|motorway|highway|bridge|tunnel/.test(layer.id),boundary=/boundary/.test(layer.id);
-   layer.paint={'line-color':road?'#709fdc':'#547fbd','line-opacity':boundary?.22:road?.52:.35,'line-width':road?['interpolate',['linear'],['zoom'],8,.15,12,.45,16,1.3,19,3.5]:.45};
+   layer.paint={'line-color':road?'#81b3ff':'#6d99e7','line-opacity':boundary?.12:road?.31:.27,'line-width':road?['interpolate',['linear'],['zoom'],8,.12,12,.35,16,.85,19,2]:.35};
   }
-  if(layer.type==='symbol'){layer.paint={'text-color':'#a1bde4','text-opacity':.38,'text-halo-color':'#0a285f','text-halo-width':1};}
+  if(layer.type==='symbol'){layer.paint={'text-color':'#a1bde4','text-opacity':.2,'text-halo-color':'#0a285f','text-halo-width':1};}
  }
  return style;
 }
 async function initMap(){
  if(state.map){state.map.remove();state.map=null;}
- state.mapReady=false;state.lastSpireSignature='';$('fallback-notice').hidden=true;loading(true);
+ state.mapReady=false;state.lastSpireSignature='';lastTextureKey='';clearTimeout(textureTimer);$('fallback-notice').hidden=true;loading(true);
  try{
   if(!window.maplibregl)throw new Error('The map library is unavailable');
   const response=await fetch('./vendor/base-style.json',{signal:AbortSignal.timeout(10000)});if(!response.ok)throw new Error('Basemap style unavailable');
@@ -171,13 +172,14 @@ async function initMap(){
   });
   map.on('movestart',()=>{clearTimeout(moveTimer);clearTimeout(loadTimer);loadTimer=setTimeout(()=>loading(true),400);});
   map.on('moveend',()=>{
-   clearTimeout(loadTimer);clearTimeout(moveTimer);moveTimer=setTimeout(()=>{if(!state.selection){renderPanel();}updateSpireSource();updateReadout();loading(false);},230);
+   clearTimeout(loadTimer);clearTimeout(moveTimer);moveTimer=setTimeout(()=>{if(!state.selection){renderPanel();}updateSpireSource();scheduleTexture();updateReadout();loading(false);},230);
   });
   map.on('zoom',updateReadout);
-  map.on('idle',()=>{if(state.mapReady){updateSpireSource();clearTimeout(loadTimer);loading(false);}});
+  map.on('idle',()=>{if(state.mapReady){updateSpireSource();scheduleTexture();clearTimeout(loadTimer);loading(false);}});
   map.on('sourcedata',e=>{if(e.sourceId==='archive'&&e.isSourceLoaded){clearTimeout(sourceUpdateTimer);sourceUpdateTimer=setTimeout(updateSpireSource,50);}});
   map.on('click',onMapClick);
   map.on('mousemove',onMapHover);
+  map.getCanvas().addEventListener('mouseleave',()=>{popup?.remove();popup=null;});
   map.on('dragstart',()=>{state.city=null;document.querySelectorAll('.city-button').forEach(b=>b.classList.remove('active'));if(state.selection)clearSelection();});
   loadTimer=setTimeout(()=>{if(!state.mapReady||!map.areTilesLoaded()){$('fallback-notice').hidden=false;loading(false);}},18000);
  }catch(error){console.warn('Map could not start:',error.message);$('fallback-notice').hidden=false;loading(false);renderPanel();}
@@ -185,21 +187,34 @@ async function initMap(){
 function mapPadding(){return innerWidth<=760?{left:15,right:15,top:100,bottom:Math.round(innerHeight*.34)}:{left:20,right:parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--panel-width'))+95,top:80,bottom:90};}
 function installLayers(){
  const map=state.map;
- map.setLight({anchor:'viewport',color:'#dbe9ff',intensity:.65,position:[1.5,100,45]});
- map.addLayer({id:'latent-buildings',type:'fill-extrusion',source:'openmaptiles','source-layer':'building',minzoom:12,paint:{'fill-extrusion-color':'#2861ac','fill-extrusion-height':['*',['coalesce',['get','render_height'],['get','height'],5],1.2],'fill-extrusion-base':['coalesce',['get','render_min_height'],0],'fill-extrusion-opacity':.55,'fill-extrusion-vertical-gradient':true}});
+ map.setLight({anchor:'viewport',color:'#edf4ff',intensity:.88,position:[1.5,150,55]});
+ map.addLayer({id:'latent-buildings',type:'fill-extrusion',source:'openmaptiles','source-layer':'building',minzoom:12,paint:{'fill-extrusion-color':['interpolate',['linear'],['coalesce',['get','render_height'],8],0,'#1c4fc6',25,'#326fdf',80,'#5b98ed'],'fill-extrusion-height':['*',['coalesce',['get','render_height'],['get','height'],8],1.65],'fill-extrusion-base':['coalesce',['get','render_min_height'],0],'fill-extrusion-opacity':.88,'fill-extrusion-vertical-gradient':true}});
+ urbanLayer=new LuminousPoints('urban-point-cloud');map.addLayer(urbanLayer);
  const props={};for(const theme of THEMES)props[theme.id]=['+',['case',['==',['get','theme'],theme.id],1,0]];
  map.addSource('archive',{type:'geojson',data:pointCollection([]),cluster:true,clusterRadius:48,clusterMaxZoom:15,clusterProperties:props});
  map.addSource('spires',{type:'geojson',data:{type:'FeatureCollection',features:[]}});
  const count=['coalesce',['get','point_count'],1];
- const radius=['interpolate',['linear'],count,1,15,6,28,20,50,60,75];
+ const radius=['interpolate',['linear'],count,1,18,6,42,20,78,60,105];
  const color=['case',['has','cluster'],'#ffdf9d',['get','color']];
- map.addLayer({id:'archive-halo-wide',type:'circle',source:'archive',paint:{'circle-radius':['*',radius,1.7],'circle-color':color,'circle-opacity':.12,'circle-blur':.85,'circle-pitch-alignment':'map'}});
- map.addLayer({id:'archive-halo',type:'circle',source:'archive',paint:{'circle-radius':radius,'circle-color':color,'circle-opacity':.36,'circle-blur':.78,'circle-pitch-alignment':'map'}});
- map.addLayer({id:'spires-body',type:'fill-extrusion',source:'spires',paint:{'fill-extrusion-color':['get','color'],'fill-extrusion-height':['get','height'],'fill-extrusion-base':0,'fill-extrusion-opacity':.87,'fill-extrusion-vertical-gradient':true}});
+ map.addLayer({id:'archive-halo-wide',type:'circle',source:'archive',paint:{'circle-radius':['*',radius,1.85],'circle-color':color,'circle-opacity':.19,'circle-blur':.95,'circle-pitch-alignment':'map'}});
+ map.addLayer({id:'archive-halo',type:'circle',source:'archive',paint:{'circle-radius':radius,'circle-color':color,'circle-opacity':.53,'circle-blur':.82,'circle-pitch-alignment':'map'}});
+ map.addLayer({id:'spires-body',type:'fill-extrusion',source:'spires',paint:{'fill-extrusion-color':['get','color'],'fill-extrusion-height':['get','height'],'fill-extrusion-base':0,'fill-extrusion-opacity':.98,'fill-extrusion-vertical-gradient':false}});
+ lightLayer=new LuminousPoints('cluster-light-particles');map.addLayer(lightLayer);
  map.addLayer({id:'archive-core',type:'circle',source:'archive',paint:{'circle-radius':['interpolate',['linear'],count,1,3,8,5,40,8],'circle-color':'#fff3d5','circle-opacity':.95,'circle-blur':.2,'circle-pitch-alignment':'map','circle-stroke-color':'#fff2d2','circle-stroke-width':.5}});
- map.addLayer({id:'archive-ring',type:'circle',source:'archive',filter:['has','point_count'],paint:{'circle-radius':['interpolate',['linear'],count,2,12,20,17,70,22],'circle-color':'#061b49','circle-opacity':.17,'circle-stroke-color':'#fff1d5','circle-stroke-opacity':.65,'circle-stroke-width':.7,'circle-pitch-alignment':'map'}});
- map.addLayer({id:'archive-count',type:'symbol',source:'archive',filter:['has','point_count'],layout:{'text-field':['to-string',['get','point_count_abbreviated']],'text-font':['Noto Sans Regular'],'text-size':10,'text-allow-overlap':true},paint:{'text-color':'#fff4d9','text-halo-color':'#173a67','text-halo-width':2}});
+ map.addLayer({id:'archive-ring',type:'circle',source:'archive',filter:['has','point_count'],paint:{'circle-radius':5,'circle-color':'#174aa4','circle-opacity':.8,'circle-stroke-color':'#fff9e7','circle-stroke-opacity':1,'circle-stroke-width':1.1,'circle-pitch-alignment':'map'}});
  map.addLayer({id:'selected-points',type:'circle',source:'archive',filter:['in',['get','id'],['literal',[]]],paint:{'circle-radius':11,'circle-color':'#ffffff','circle-opacity':0,'circle-stroke-color':'#ffffff','circle-stroke-width':1.5}});
+}
+function scheduleTexture(){
+ if(!state.mapReady||!urbanLayer||state.map.isMoving())return;
+ const map=state.map,c=map.getCenter();
+ const key=[c.lng.toFixed(3),c.lat.toFixed(3),map.getZoom().toFixed(1),map.getBearing().toFixed(0),map.getPitch().toFixed(0),map.areTilesLoaded()].join(':');
+ if(key===lastTextureKey)return;
+ clearTimeout(textureTimer);textureTimer=setTimeout(()=>{
+  if(!state.mapReady||map!==state.map||map.isMoving())return;
+  lastTextureKey=key;
+  if(map.getZoom()<11.5){urbanLayer.setPoints([]);return;}
+  try{urbanLayer.setPoints(urbanTexture(map,{mobile:innerWidth<=760}));}catch(error){console.warn('Surface texture unavailable:',error.message);}
+ },350);
 }
 function updatePointSource(){
  if(!state.mapReady)return;
@@ -215,22 +230,26 @@ function updateSpireSource(){
  const signature=[state.archive?.version,state.theme,Math.floor(zoom*2),...[...unique.keys()].sort()].join('|');
  if(signature===state.lastSpireSignature)return;
  state.lastSpireSignature=signature;
- const result=[];
- const scale=Math.min(9,Math.max(.2,2**(13-zoom)));
+ const result=[],lights=[];
+ const scale=Math.min(9,Math.max(.16,2**(13.3-zoom)));
  for(const [key,f] of unique){
-  const count=Number(f.properties.point_count)||1,color=f.properties.cluster?'#ffe4a5':f.properties.color;
+  const count=Number(f.properties.point_count)||1,color=f.properties.cluster?'#fff0c6':f.properties.color;
   const center=f.geometry.coordinates;
-  const quantity=Math.min(32,Math.max(1,Math.round(Math.sqrt(count)*3.5)));
+  const quantity=Math.min(innerWidth<=760?105:190,Math.max(12,Math.round(count*6.5)));
   let seed=[...key].reduce((s,c)=>Math.imul(s,31)+c.charCodeAt(0)|0,1)>>>0;
   const rand=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
   for(let i=0;i<quantity;i++){
-   const angle=rand()*Math.PI*2,dist=i?Math.sqrt(rand())*52*scale:0;
+   const angle=rand()*Math.PI*2,spread=(65+Math.sqrt(count)*34)*scale,normalized=i?Math.sqrt(rand()):0,dist=normalized*spread;
    const point=[center[0]+Math.cos(angle)*dist/(111320*Math.cos(center[1]*Math.PI/180)),center[1]+Math.sin(angle)*dist/111320];
-   const height=(i?65+rand()*230:180+Math.sqrt(count)*43)*scale;
-   result.push({type:'Feature',geometry:makeSpire(point,height,(i?3+rand()*4:8)*scale),properties:{height,color}});
+   const height=(25+(1-normalized**1.5)*(100+rand()*310)+rand()*45)*scale;
+   const tint=rand();
+   result.push({type:'Feature',geometry:makeSpire(point,height,(3+rand()*6)*scale),properties:{height,color:count>1?(tint>.65?'#fff8e4':tint>.3?'#ffe8b2':'#f8ce79'):color}});
+   for(let j=0;j<5;j++)lights.push({position:[point[0]+(rand()-.5)*.00012*scale,point[1]+(rand()-.5)*.00008*scale],height:height*(j?rand():1)+4,color:[1,.88+rand()*.12,.62+rand()*.3],alpha:.7+rand()*.3,size:1.4+rand()*2.3});
+   if(i%2===0)lights.push({position:point,height:height+20+rand()*70*scale,color:[.85,.92,1],alpha:.8,size:1+rand()*1.5});
   }
  }
  map.getSource('spires').setData({type:'FeatureCollection',features:result});
+ lightLayer?.setPoints(lights);
 }
 function hitFeatures(point){if(!state.mapReady)return [];return state.map.queryRenderedFeatures(point,{layers:['archive-core','archive-ring','archive-halo']});}
 async function onMapClick(event){
@@ -266,7 +285,7 @@ function onMapHover(event){
 }
 function updateReadout(){
  if(!state.map)return;
- const {lng,lat}=state.map.getCenter();$('coordinates').textContent=`${Math.abs(lat).toFixed(3)}° ${lat>=0?'N':'S'} · ${Math.abs(lng).toFixed(3)}° ${lng>=0?'E':'W'}`;$('zoom-readout').textContent=state.map.getZoom().toFixed(1);
+ const {lng,lat}=state.map.getCenter();$('coordinates').textContent=`${Math.abs(lat).toFixed(3)}° ${lat>=0?'N':'S'} · ${Math.abs(lng).toFixed(3)}° ${lng>=0?'E':'W'}`;$('zoom-readout').textContent=state.map.getZoom().toFixed(1);$('zoom-range').value=state.map.getZoom().toFixed(1);
 }
 function goToCity(id){
  const city=CITIES.find(c=>c.id===id);if(!city)return;
@@ -286,6 +305,7 @@ function setupEvents(){
  document.querySelectorAll('[data-city]').forEach(b=>b.addEventListener('click',()=>goToCity(b.dataset.city)));
  $('world-button').addEventListener('click',()=>{state.city=null;clearSelection();document.querySelectorAll('.city-button').forEach(b=>b.classList.toggle('active',b.id==='world-button'));if(state.mapReady)state.map.flyTo({center:[32,40],zoom:1.8,pitch:0,bearing:0,duration:reducedMotion?0:2200,padding:mapPadding()});});
  $('zoom-in').addEventListener('click',()=>state.map?.zoomIn({duration:reducedMotion?0:500}));$('zoom-out').addEventListener('click',()=>state.map?.zoomOut({duration:reducedMotion?0:500}));$('reset-bearing').addEventListener('click',()=>state.map?.easeTo({bearing:0,pitch:0,duration:reducedMotion?0:800}));
+ $('zoom-range').addEventListener('change',event=>state.map?.zoomTo(Number(event.target.value),{duration:reducedMotion?0:600}));
  $('clear-selection').addEventListener('click',clearSelection);$('empty-reset').addEventListener('click',()=>goToCity('london'));
  $('detail-toggle').addEventListener('click',()=>openDetails($('detail-content').hidden));
  $('previous-record').addEventListener('click',()=>showRecord(-1));$('next-record').addEventListener('click',()=>showRecord(1));

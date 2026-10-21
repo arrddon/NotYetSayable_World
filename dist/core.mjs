@@ -7,7 +7,7 @@ export const THEMES = [
   {id:'community',en:'Community',ko:'공동체',color:'#b6caff'},
 ];
 export const CITIES = [
-  {id:'london',en:'London',ko:'런던',center:[-.096,51.508],zoom:12.8,bearing:-24,pitch:51},
+  {id:'london',en:'London',ko:'런던',center:[-.098,51.512],zoom:13.3,bearing:-27,pitch:57},
   {id:'seoul',en:'Seoul',ko:'서울',center:[126.975,37.555],zoom:12.2,bearing:-22,pitch:49},
   {id:'new-york',en:'New York',ko:'뉴욕',center:[-73.992,40.731],zoom:12.7,bearing:28,pitch:51},
   {id:'paris',en:'Paris',ko:'파리',center:[2.35,48.855],zoom:12.7,bearing:-20,pitch:51},

@@ -9,6 +9,7 @@
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./vendor/maplibre-gl.css">
   <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./reference-visual.css">
   <script src="./vendor/maplibre-gl.js" defer></script>
   <script type="module" src="./app.mjs"></script>
 </head>
@@ -18,7 +19,7 @@
     <div id="map" role="region" aria-label="미래에 살고 싶은 곳을 탐색하는 지도"></div>
     <div class="map-shade" aria-hidden="true"></div>
     <header class="masthead">
-      <a class="wordmark" href="./" aria-label="처음 화면"><span class="wordmark-dot"></span>NOT YET SAYABLE<span class="edition">ARCHIVE / 01</span></a>
+      <a class="wordmark" href="./" aria-label="처음 화면">Not Yet Sayable: Latent Homes<span class="edition">ARCHIVE / 01</span></a>
       <div class="intro"><h1>Latent Homes</h1><p data-i18n="subtitle">아직 말해지지 않은 집의 풍경</p></div>
       <p class="intro-note" data-i18n="intro">기억과 지금, 그리고 앞으로의 집.<br>각자의 상상이 만나 하나의 풍경이 됩니다.</p>
     </header>
@@ -66,6 +67,7 @@
       <div class="data-note"><span class="demo-mark" id="demo-label">DEMO DATA</span><span id="data-status" role="status">공개 데이터 확인 중</span><button id="refresh-data" class="refresh-button" aria-label="공개 데이터 새로 확인" title="공개 데이터 새로 확인">↻</button></div>
     </footer>
     <div class="view-readout"><span id="coordinates">51.507° N · 0.096° W</span><span>ZOOM <span id="zoom-readout">12.6</span></span></div>
+    <div class="zoom-panel"><label for="zoom-range" class="micro-label">ZOOM LEVEL</label><input id="zoom-range" aria-label="지도 확대 수준" type="range" min="2" max="18" step="0.1" value="13.3"><div class="zoom-ticks" aria-hidden="true"><span>2</span><span>6</span><span>10</span><span>14</span><span>18</span></div></div>
     <div class="toast" id="toast" role="status" hidden></div>
     <div class="fallback-notice" id="fallback-notice" hidden><p data-i18n="fallback">배경 지도를 연결하지 못했습니다. 키워드 탐색은 계속 사용할 수 있습니다.</p><button class="inline-button" id="retry-map" data-i18n="retry">지도 다시 연결</button></div>
   </main>
