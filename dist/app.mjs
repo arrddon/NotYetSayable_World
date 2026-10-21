@@ -111,12 +111,12 @@ async function refreshArchive({manual=false,initial=false}={}){
  if(state.refreshing)return;
  state.refreshing=true;$('refresh-data').disabled=true;
  try{
-  const res=await fetch('./data/manifest.json',{cache:'no-cache'});if(!res.ok)throw new Error('Manifest unavailable');
+  const res=await fetch('./data/manifest.json',{cache:'no-cache',signal:AbortSignal.timeout(10000)});if(!res.ok)throw new Error('Manifest unavailable');
   const manifest=await res.json();
   if(manifest.schemaVersion!==1||typeof manifest.version!=='string'||!safeDataPath(manifest.file))throw new Error('Invalid manifest');
   if(state.archive?.version===manifest.version){if(manual)toast(t('noChange'));return;}
   if(!initial)loading(true,'updating');
-  const response=await fetch(new URL(manifest.file,location.href));if(!response.ok)throw new Error('Archive unavailable');
+  const response=await fetch(new URL(manifest.file,location.href),{signal:AbortSignal.timeout(15000)});if(!response.ok)throw new Error('Archive unavailable');
   const candidate=validateArchive(await response.json());if(candidate.version!==manifest.version)throw new Error('Version mismatch');
   state.archive=candidate;
   if(state.selection){const valid=new Set(candidate.records.map(r=>r.id));state.selection=new Set([...state.selection].filter(id=>valid.has(id)));if(!state.selection.size){state.selection=null;state.area=null;}}
@@ -152,7 +152,7 @@ async function initMap(){
  state.mapReady=false;state.lastSpireSignature='';$('fallback-notice').hidden=true;loading(true);
  try{
   if(!window.maplibregl)throw new Error('The map library is unavailable');
-  const response=await fetch('./vendor/base-style.json');if(!response.ok)throw new Error('Basemap style unavailable');
+  const response=await fetch('./vendor/base-style.json',{signal:AbortSignal.timeout(10000)});if(!response.ok)throw new Error('Basemap style unavailable');
   const style=nightStyle(await response.json());
   const city=CITIES.find(c=>c.id===state.city)||CITIES[0];
   const mobile=innerWidth<=760;
@@ -193,8 +193,8 @@ function installLayers(){
  const count=['coalesce',['get','point_count'],1];
  const radius=['interpolate',['linear'],count,1,15,6,28,20,50,60,75];
  const color=['case',['has','cluster'],'#ffdf9d',['get','color']];
- map.addLayer({id:'archive-halo-wide',type:'circle',source:'archive',paint:{'circle-radius':['*',radius,1.7],'circle-color':color,'circle-opacity':.07,'circle-blur':.85,'circle-pitch-alignment':'map'}});
- map.addLayer({id:'archive-halo',type:'circle',source:'archive',paint:{'circle-radius':radius,'circle-color':color,'circle-opacity':.22,'circle-blur':.78,'circle-pitch-alignment':'map'}});
+ map.addLayer({id:'archive-halo-wide',type:'circle',source:'archive',paint:{'circle-radius':['*',radius,1.7],'circle-color':color,'circle-opacity':.12,'circle-blur':.85,'circle-pitch-alignment':'map'}});
+ map.addLayer({id:'archive-halo',type:'circle',source:'archive',paint:{'circle-radius':radius,'circle-color':color,'circle-opacity':.36,'circle-blur':.78,'circle-pitch-alignment':'map'}});
  map.addLayer({id:'spires-body',type:'fill-extrusion',source:'spires',paint:{'fill-extrusion-color':['get','color'],'fill-extrusion-height':['get','height'],'fill-extrusion-base':0,'fill-extrusion-opacity':.87,'fill-extrusion-vertical-gradient':true}});
  map.addLayer({id:'archive-core',type:'circle',source:'archive',paint:{'circle-radius':['interpolate',['linear'],count,1,3,8,5,40,8],'circle-color':'#fff3d5','circle-opacity':.95,'circle-blur':.2,'circle-pitch-alignment':'map','circle-stroke-color':'#fff2d2','circle-stroke-width':.5}});
  map.addLayer({id:'archive-ring',type:'circle',source:'archive',filter:['has','point_count'],paint:{'circle-radius':['interpolate',['linear'],count,2,12,20,17,70,22],'circle-color':'#061b49','circle-opacity':.17,'circle-stroke-color':'#fff1d5','circle-stroke-opacity':.65,'circle-stroke-width':.7,'circle-pitch-alignment':'map'}});
@@ -220,14 +220,14 @@ function updateSpireSource(){
  for(const [key,f] of unique){
   const count=Number(f.properties.point_count)||1,color=f.properties.cluster?'#ffe4a5':f.properties.color;
   const center=f.geometry.coordinates;
-  const quantity=Math.min(22,Math.max(1,Math.round(Math.sqrt(count)*2)));
+  const quantity=Math.min(32,Math.max(1,Math.round(Math.sqrt(count)*3.5)));
   let seed=[...key].reduce((s,c)=>Math.imul(s,31)+c.charCodeAt(0)|0,1)>>>0;
   const rand=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
   for(let i=0;i<quantity;i++){
-   const angle=rand()*Math.PI*2,dist=i?Math.sqrt(rand())*42*scale:0;
+   const angle=rand()*Math.PI*2,dist=i?Math.sqrt(rand())*52*scale:0;
    const point=[center[0]+Math.cos(angle)*dist/(111320*Math.cos(center[1]*Math.PI/180)),center[1]+Math.sin(angle)*dist/111320];
-   const height=(i?35+rand()*110:90+Math.sqrt(count)*22)*scale;
-   result.push({type:'Feature',geometry:makeSpire(point,height,(i?2+rand()*3:5)*scale),properties:{height,color}});
+   const height=(i?65+rand()*230:180+Math.sqrt(count)*43)*scale;
+   result.push({type:'Feature',geometry:makeSpire(point,height,(i?3+rand()*4:8)*scale),properties:{height,color}});
   }
  }
  map.getSource('spires').setData({type:'FeatureCollection',features:result});
