@@ -21,7 +21,8 @@ export class BloomPass {
     void main(){vec3 scene=texture(u_scene,v_uv).rgb;vec3 bloom=texture(u_bloom,v_uv).rgb;
      float blue=smoothstep(.04,.26,scene.b-scene.r)*(1.0-smoothstep(.25,.7,scene.r));
      scene.g+=(scene.b-scene.g)*u_cyan*.55*blue;scene.r*=1.0-u_cyan*.14*blue;
-     float n=(grain(floor(gl_FragCoord.xy))-.5)*u_grain;vec3 color=scene+bloom*u_strength;
+     float n=(grain(floor(gl_FragCoord.xy))-.5)*u_grain;
+     vec3 color=vec3(1.0)-(vec3(1.0)-scene)*exp(-bloom*u_strength*1.35);
      fragColor=vec4(max(vec3(0.0),color+vec3(n*.84,n,n*1.04)),1.0);}`));
    this.vao=gl.createVertexArray();this.scene=gl.createTexture();this.targets=[0,1].map(()=>({texture:gl.createTexture(),framebuffer:gl.createFramebuffer()}));this.enabled=true;
   }catch(error){console.warn('Bloom pass unavailable:',error.message);}
