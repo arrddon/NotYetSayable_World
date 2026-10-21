@@ -76,16 +76,19 @@ export function urbanTexture(map,{mobile=false}={}){
    geometries.push({ring,mid,height:Math.max(5,Number(f.properties.render_height||f.properties.height)||8)*1.65+2,dist:distance(mid,[center.lng,center.lat])});
   }
  }
- geometries.sort((a,b)=>a.dist-b.dist);
  const roofBudget=budget*.83;
+ const perBuilding=Math.max(3,Math.min(55,Math.floor(roofBudget/Math.max(1,geometries.length))));
  for(const {ring,mid,height} of geometries){
   if(points.length>=roofBudget)break;
-  trace(ring,height,mobile?10:6,true);
-  for(let i=1;i<ring.length&&points.length<roofBudget;i++){
-   const n=Math.min(12,Math.max(1,Math.ceil(distance(ring[i-1],ring[i])/11)));
-   for(let j=0;j<n;j++){
-    const edge=mix(ring[i-1],ring[i],random());push(mix(mid,edge,Math.sqrt(random())),height+random()*2,random()>.72);
-   }
+  const lengths=[];let perimeter=0;
+  for(let i=1;i<ring.length;i++){perimeter+=distance(ring[i-1],ring[i]);lengths.push(perimeter);}
+  if(!perimeter)continue;
+  for(let j=0;j<perBuilding&&points.length<roofBudget;j++){
+   const along=random()*perimeter;let edgeIndex=lengths.findIndex(length=>length>=along);if(edgeIndex<0)edgeIndex=lengths.length-1;
+   const edge=mix(ring[edgeIndex],ring[edgeIndex+1],random());
+   const p=j%3===0?mix(mid,edge,Math.sqrt(random())):edge;
+   const z=j%4===1&&height>18?random()*height:height+random()*2;
+   push(p,z,random()>.73);
   }
  }
  try{

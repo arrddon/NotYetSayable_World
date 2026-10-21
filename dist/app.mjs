@@ -72,7 +72,7 @@ function renderPanel(){
   const track=text('div','','theme-track'),fill=text('div','','theme-fill');fill.style.width=`${theme.count/summary.total*100}%`;track.append(fill);b.append(head,track);b.addEventListener('click',()=>setTheme(theme.id));ranking.append(b);
  }
  const cloud=$('keyword-cloud');cloud.replaceChildren();
- for(const word of baseSummary.keywords.slice(0,9)){
+ for(const word of baseSummary.keywords.slice(0,6)){
   const b=text('button','','keyword');b.classList.toggle('active',state.keyword===word.id);b.setAttribute('aria-pressed',String(state.keyword===word.id));b.append(text('span',word[state.lang]),text('span',word.count,'keyword-count'));
   b.addEventListener('click',()=>{state.keyword=state.keyword===word.id?null:word.id;state.recordIndex=0;renderPanel();updateHighlight();if(!$('detail-content').hidden)renderRecord();});cloud.append(b);
  }
