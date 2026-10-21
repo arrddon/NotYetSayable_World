@@ -1,5 +1,6 @@
 import {THEMES,CITIES,validateArchive,selectRecords,summarize,pointCollection,makeSpire,safeDataPath} from './core.mjs';
 import {LuminousPoints,urbanTexture} from './landscape.mjs';
+import {BloomPass} from './bloom.mjs';
 
 const $=id=>document.getElementById(id);
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -132,17 +133,17 @@ async function refreshArchive({manual=false,initial=false}={}){
 
 function nightStyle(style){
  style.name='Latent Homes / Cobalt';
- style.layers=style.layers.filter(l=>l.type!=='symbol'||/^place-(city|town|country|state)/.test(l.id));
+ style.layers=style.layers.filter(l=>l.type!=='symbol');
  for(const layer of style.layers){
   layer.paint ||= {};
-  if(layer.type==='background')layer.paint={'background-color':'#06338b'};
+  if(layer.type==='background')layer.paint={'background-color':'#053b8f'};
   if(layer.type==='fill'){
    const water=/water/.test(layer.id),building=/building/.test(layer.id),park=/park|wood|grass/.test(layer.id);
-   layer.paint={'fill-color':water?'#031b53':building?'#1b59c2':park?'#103e91':'#0b3590','fill-opacity':water?1:building?.65:.45};
+   layer.paint={'fill-color':water?'#031d4d':building?'#185fba':park?'#104891':'#0a4193','fill-opacity':water?1:building?.65:.45};
   }
   if(layer.type==='line'){
    const road=/road|motorway|highway|bridge|tunnel/.test(layer.id),boundary=/boundary/.test(layer.id);
-   layer.paint={'line-color':road?'#81b3ff':'#6d99e7','line-opacity':boundary?.12:road?.31:.27,'line-width':road?['interpolate',['linear'],['zoom'],8,.12,12,.35,16,.85,19,2]:.35};
+   layer.paint={'line-color':road?'#8bceff':'#73b7eb','line-opacity':boundary?.12:road?.29:.27,'line-width':road?['interpolate',['linear'],['zoom'],8,.12,12,.35,16,.85,19,2]:.35};
   }
   if(layer.type==='symbol'){layer.paint={'text-color':'#a1bde4','text-opacity':.2,'text-halo-color':'#0a285f','text-halo-width':1};}
  }
@@ -188,7 +189,7 @@ function mapPadding(){return innerWidth<=760?{left:15,right:15,top:100,bottom:Ma
 function installLayers(){
  const map=state.map;
  map.setLight({anchor:'viewport',color:'#edf4ff',intensity:.88,position:[1.5,150,55]});
- map.addLayer({id:'latent-buildings',type:'fill-extrusion',source:'openmaptiles','source-layer':'building',minzoom:12,paint:{'fill-extrusion-color':['interpolate',['linear'],['coalesce',['get','render_height'],8],0,'#1c4fc6',25,'#326fdf',80,'#5b98ed'],'fill-extrusion-height':['*',['coalesce',['get','render_height'],['get','height'],8],1.65],'fill-extrusion-base':['coalesce',['get','render_min_height'],0],'fill-extrusion-opacity':.88,'fill-extrusion-vertical-gradient':true}});
+ map.addLayer({id:'latent-buildings',type:'fill-extrusion',source:'openmaptiles','source-layer':'building',minzoom:12,paint:{'fill-extrusion-color':['interpolate',['linear'],['coalesce',['get','render_height'],8],0,'#164eae',25,'#2774ce',80,'#68b0ea'],'fill-extrusion-height':['*',['coalesce',['get','render_height'],['get','height'],8],1.65],'fill-extrusion-base':['coalesce',['get','render_min_height'],0],'fill-extrusion-opacity':.78,'fill-extrusion-vertical-gradient':true}});
  urbanLayer=new LuminousPoints('urban-point-cloud');map.addLayer(urbanLayer);
  const props={};for(const theme of THEMES)props[theme.id]=['+',['case',['==',['get','theme'],theme.id],1,0]];
  map.addSource('archive',{type:'geojson',data:pointCollection([]),cluster:true,clusterRadius:48,clusterMaxZoom:15,clusterProperties:props});
@@ -203,6 +204,7 @@ function installLayers(){
  map.addLayer({id:'archive-core',type:'circle',source:'archive',paint:{'circle-radius':['interpolate',['linear'],count,1,3,8,5,40,8],'circle-color':'#fff3d5','circle-opacity':.95,'circle-blur':.2,'circle-pitch-alignment':'map','circle-stroke-color':'#fff2d2','circle-stroke-width':.5}});
  map.addLayer({id:'archive-ring',type:'circle',source:'archive',filter:['has','point_count'],paint:{'circle-radius':5,'circle-color':'#174aa4','circle-opacity':.8,'circle-stroke-color':'#fff9e7','circle-stroke-opacity':1,'circle-stroke-width':1.1,'circle-pitch-alignment':'map'}});
  map.addLayer({id:'selected-points',type:'circle',source:'archive',filter:['in',['get','id'],['literal',[]]],paint:{'circle-radius':11,'circle-color':'#ffffff','circle-opacity':0,'circle-stroke-color':'#ffffff','circle-stroke-width':1.5}});
+ map.addLayer(new BloomPass());
 }
 function scheduleTexture(){
  if(!state.mapReady||!urbanLayer||state.map.isMoving())return;
@@ -246,6 +248,14 @@ function updateSpireSource(){
    result.push({type:'Feature',geometry:makeSpire(point,height,(3+rand()*6)*scale),properties:{height,color:count>1?(tint>.65?'#fff8e4':tint>.3?'#ffe8b2':'#f8ce79'):color}});
    for(let j=0;j<5;j++)lights.push({position:[point[0]+(rand()-.5)*.00012*scale,point[1]+(rand()-.5)*.00008*scale],height:height*(j?rand():1)+4,color:[1,.88+rand()*.12,.62+rand()*.3],alpha:.7+rand()*.3,size:1.4+rand()*2.3});
    if(i%2===0)lights.push({position:point,height:height+20+rand()*70*scale,color:[.85,.92,1],alpha:.8,size:1+rand()*1.5});
+  }
+  if(count>1){
+   const beaconHeight=(370+Math.sqrt(count)*37)*scale;
+   for(let k=0;k<4;k++){
+    const point=[center[0]+(rand()-.5)*.00028*scale,center[1]+(rand()-.5)*.00016*scale],height=beaconHeight*(1-k*.12);
+    result.push({type:'Feature',geometry:makeSpire(point,height,(k?2.6:4)*scale),properties:{height,color:'#fffbed'}});
+    for(let j=0;j<14;j++)lights.push({position:[point[0]+(rand()-.5)*.00008*scale,point[1]+(rand()-.5)*.00005*scale],height:height*(.3+rand()*.8),color:[1,.96,.79],alpha:.78,size:2+rand()*2.5});
+   }
   }
  }
  map.getSource('spires').setData({type:'FeatureCollection',features:result});

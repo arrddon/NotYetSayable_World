@@ -6,6 +6,8 @@ V05의 첫 웹 프로토타입. 무료 정적 호스팅을 위한 HTML/CSS/JavaS
 
 - MapLibre + OpenFreeMap 청색 지도와 3D 건물·군집 기둥.
 - 실제 지도 건물·도로의 형상을 샘플링한 GPU 점 질감과 조밀한 발광 군집. 장식용 점·기둥 수는 참여자 수가 아니며 통계는 별도 실제 레코드 집계만 사용한다.
+- Pretendard 전용 UI, 사이언이 섞인 청색, 더 위에서 내려다보는 카메라, 군집 중심 빛기둥.
+- 지도 전용 bloom 후처리: 밝은 영역 추출 → 저해상도 4회 분리 블러 → 원본 합성 + 미세한 정적 필름 그레인. HTML 글자에는 적용하지 않는다. 지도 변경 시에만 렌더링하며 상시 애니메이션 루프를 만들지 않는다.
 - 런던·서울·뉴욕·파리 이동, 확대·축소, 지리적 군집 선택.
 - 화면 영역 / 선택 군집의 공통 주제·키워드 집계.
 - 주제·키워드 필터와 개별 기록의 과거·현재·미래 키워드 탐색.
@@ -23,7 +25,7 @@ Node.js 20 이상:
 npm run dev
 ```
 
-`http://127.0.0.1:4173`에서 확인한다. 정적 배포 디렉터리는 `dist/`다. `dist/vendor/`에 MapLibre GL JS 5.6.0과 라이선스를 보관한다. 지도 타일·글리프·스프라이트는 OpenFreeMap, 선택적 웹폰트는 Google Fonts에서 받는다. 네트워크 없이 배경 지도를 완전히 재현하는 기능은 포함하지 않는다.
+`http://127.0.0.1:4173`에서 확인한다. 정적 배포 디렉터리는 `dist/`다. `dist/vendor/`에 MapLibre GL JS 5.6.0, Pretendard Variable 1.3.9와 각각의 라이선스를 보관한다. 지도 타일·스프라이트는 OpenFreeMap에서 받는다. 글꼴은 사이트에서 직접 제공하며 다른 글꼴의 지도 레이블은 표시하지 않는다. 네트워크 없이 배경 지도를 완전히 재현하는 기능은 포함하지 않는다.
 
 검증:
 
@@ -57,6 +59,7 @@ frame.contentWindow.postMessage({ type: 'nys:navigate', unitId: 'LH-DEMO-0001' }
 ## 출처
 
 - MapLibre GL JS: https://maplibre.org/ (BSD-3-Clause, `dist/vendor/MAPLIBRE-LICENSE.txt`)
+- Pretendard: https://github.com/orioncactus/pretendard (SIL OFL 1.1, `dist/vendor/PRETENDARD-LICENSE.txt`)
 - 지도: OpenFreeMap / OpenMapTiles / OpenStreetMap. 지도 출처 표시는 유지한다.
 - 작품: Arrddon / Kiryung Nam, Not Yet Sayable: Latent Homes.
 

@@ -52,7 +52,7 @@ export function urbanTexture(map,{mobile=false}={}){
  let seed=1297;const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
  const push=(position,height=1,bright=false)=>{
   if(points.length>=budget)return;
-  const r=random();points.push({position,height,color:bright?[.67,.84,1]:[.2+r*.28,.43+r*.3,1],alpha:bright?.82:.45+r*.38,size:bright?1.9:1.05+r*1.1});
+  const r=random();points.push({position,height,color:bright?[.69,.91,1]:[.17+r*.28,.55+r*.3,1],alpha:bright?.86:.45+r*.38,size:bright?1.9:1.05+r*1.1});
  };
  const trace=(ring,height,step,facade=false)=>{
   for(let i=1;i<ring.length&&points.length<budget;i++){
