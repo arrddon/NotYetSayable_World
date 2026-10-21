@@ -151,7 +151,7 @@ async function initMap(){
  if(state.map){state.map.remove();state.map=null;}
  state.mapReady=false;state.lastSpireSignature='';$('fallback-notice').hidden=true;loading(true);
  try{
-  if(!window.maplibregl||!maplibregl.supported())throw new Error('WebGL is unavailable');
+  if(!window.maplibregl)throw new Error('The map library is unavailable');
   const response=await fetch('./vendor/base-style.json');if(!response.ok)throw new Error('Basemap style unavailable');
   const style=nightStyle(await response.json());
   const city=CITIES.find(c=>c.id===state.city)||CITIES[0];
