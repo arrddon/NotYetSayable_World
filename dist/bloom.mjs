@@ -1,5 +1,4 @@
-// Map-only highlight extraction, separable blur, and film-grain composite.
-// Rendering is event-driven by MapLibre; this pass does not request an animation loop.
+// Map-only highlight extraction, separable blur and grain, without a vignette/mask.
 export class BloomPass {
  constructor(options){this.options=options;this.id='landscape-bloom';this.type='custom';this.renderingMode='2d';this.enabled=false;this.width=0;this.height=0;}
  onAdd(map,gl){
@@ -11,7 +10,7 @@ export class BloomPass {
    const fragment=body=>`#version 300 es
     precision highp float;in vec2 v_uv;out vec4 fragColor;${body}`;
    this.bright=this.program(gl,vertex,fragment(`uniform sampler2D u_image;
-    void main(){vec3 c=texture(u_image,v_uv).rgb;float l=dot(c,vec3(.2126,.7152,.0722));float gate=smoothstep(.56,.91,l)*smoothstep(.12,.56,c.r);fragColor=vec4(c*gate,1.0);}`));
+    void main(){vec3 c=texture(u_image,v_uv).rgb;float l=dot(c,vec3(.2126,.7152,.0722));float gate=smoothstep(.53,.94,l);fragColor=vec4(c*gate,1.0);}`));
    this.blur=this.program(gl,vertex,fragment(`uniform sampler2D u_image;uniform vec2 u_direction;
     void main(){vec3 c=texture(u_image,v_uv).rgb*.227027;
      c+=texture(u_image,v_uv+u_direction*1.384615).rgb*.316216;c+=texture(u_image,v_uv-u_direction*1.384615).rgb*.316216;
@@ -21,6 +20,7 @@ export class BloomPass {
     void main(){vec3 scene=texture(u_scene,v_uv).rgb;vec3 bloom=texture(u_bloom,v_uv).rgb;
      float blue=smoothstep(.04,.26,scene.b-scene.r)*(1.0-smoothstep(.25,.7,scene.r));
      scene.g+=(scene.b-scene.g)*u_cyan*.55*blue;scene.r*=1.0-u_cyan*.14*blue;
+     scene=min(vec3(1.),scene*vec3(1.,1.02,1.05));
      float n=(grain(floor(gl_FragCoord.xy))-.5)*u_grain;
      vec3 color=vec3(1.0)-(vec3(1.0)-scene)*exp(-bloom*u_strength*1.35);
      fragColor=vec4(max(vec3(0.0),color+vec3(n*.84,n,n*1.04)),1.0);}`));
@@ -42,7 +42,7 @@ export class BloomPass {
  resize(gl,width,height){
   if(this.width===width&&this.height===height)return;
   this.width=width;this.height=height;
-  const scale=Math.min(innerWidth<=760?.32:.42,1024/width,640/height);
+  const scale=Math.min(innerWidth<=760?.25:.32,720/width,450/height);
   this.blurWidth=Math.max(1,Math.round(width*scale));this.blurHeight=Math.max(1,Math.round(height*scale));
   this.allocate(gl,this.scene,width,height);
   for(const target of this.targets){
@@ -75,7 +75,8 @@ export class BloomPass {
    gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,this.scene);gl.uniform1i(this.composite.uniforms.u_scene,0);
    gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,this.targets[0].texture);gl.uniform1i(this.composite.uniforms.u_bloom,1);
    gl.uniform1f(this.composite.uniforms.u_strength,this.options.bloomStrength*(innerWidth<=760?.76:1));
-   gl.uniform1f(this.composite.uniforms.u_grain,this.options.grain);gl.uniform1f(this.composite.uniforms.u_cyan,this.options.cyan);gl.drawArrays(gl.TRIANGLES,0,3);
+   gl.uniform1f(this.composite.uniforms.u_grain,this.options.grain);gl.uniform1f(this.composite.uniforms.u_cyan,this.options.cyan);
+   gl.drawArrays(gl.TRIANGLES,0,3);
   }catch(error){this.enabled=false;console.warn('Bloom pass disabled:',error.message);}
   finally{gl.bindFramebuffer(gl.FRAMEBUFFER,framebuffer);gl.viewport(...viewport);gl.bindVertexArray(null);gl.activeTexture(gl.TEXTURE0);gl.depthMask(true);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);}
  }

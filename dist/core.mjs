@@ -1,11 +1,24 @@
 export const THEMES = [
-  {id:'connection',en:'Connection',ko:'연결',color:'#ffdc98'},
-  {id:'stability',en:'Stability',ko:'안정',color:'#5bafff'},
-  {id:'freedom',en:'Freedom',ko:'자유',color:'#71dbc4'},
-  {id:'care',en:'Care',ko:'돌봄',color:'#f29bb7'},
-  {id:'creativity',en:'Creativity',ko:'창의',color:'#b29bff'},
-  {id:'community',en:'Community',ko:'공동체',color:'#b6caff'},
+  {id:'connection',en:'Connection',ko:'연결',color:'#dbe7ef'},
+  {id:'stability',en:'Stability',ko:'안정',color:'#dbe7ef'},
+  {id:'freedom',en:'Freedom',ko:'자유',color:'#dbe7ef'},
+  {id:'care',en:'Care',ko:'돌봄',color:'#dbe7ef'},
+  {id:'creativity',en:'Creativity',ko:'창의',color:'#dbe7ef'},
+  {id:'community',en:'Community',ko:'공동체',color:'#dbe7ef'},
 ];
+// Broad labels for known city surroundings; never infer a place from archive counts.
+export function cameraRegion({lng,lat,zoom}={}){
+  if(![lng,lat,zoom].every(Number.isFinite))return {scope:'region',city:null};
+  if(zoom<5)return {scope:'world',city:null};
+  if(zoom<8)return {scope:'region',city:null};
+  const radians=Math.PI/180;
+  const city=CITIES.find(({center})=>{
+    const dLat=(lat-center[1])*radians,dLng=(lng-center[0])*radians;
+    const a=Math.sin(dLat/2)**2+Math.cos(lat*radians)*Math.cos(center[1]*radians)*Math.sin(dLng/2)**2;
+    return 6371*2*Math.asin(Math.min(1,Math.sqrt(a)))<=45;
+  });
+  return {scope:'region',city:city?.id||null};
+}
 export const CITIES = [
   {id:'london',en:'London',ko:'런던',center:[-.102,51.512],zoom:13.3,bearing:-27,pitch:43},
   {id:'seoul',en:'Seoul',ko:'서울',center:[126.975,37.555],zoom:12.2,bearing:-22,pitch:42},
