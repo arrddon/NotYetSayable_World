@@ -15,9 +15,9 @@ export function setupGraphicsPanel({settings,onChange,lang}){
   for(const p of GRAPHICS_PARAMETERS){const row=rows.get(p.key);row.input.value=settings[p.key];row.output.value=formatGraphicsValue(p,settings[p.key]);row.input.setAttribute('aria-valuetext',row.output.value);}
   document.getElementById('graphics-values').value=JSON.stringify(settings,null,2);
  }
- function apply(candidate){
+ function apply(candidate,{persist=true}={}){
   const next=normalizeGraphics(candidate),changed=GRAPHICS_PARAMETERS.filter(p=>settings[p.key]!==next[p.key]).map(p=>p.key);
-  Object.assign(settings,next);sync();try{localStorage.setItem(storageKey,JSON.stringify(settings));}catch{}
+  Object.assign(settings,next);sync();if(persist)try{localStorage.setItem(storageKey,JSON.stringify(settings));}catch{}
   onChange(changed);
  }
  function open(value){
@@ -45,5 +45,5 @@ export function setupGraphicsPanel({settings,onChange,lang}){
  function setLanguage(next){language=next;for(const parameter of GRAPHICS_PARAMETERS){const row=rows.get(parameter.key);row.label.textContent=parameter[language];row.hint.textContent=parameter[language==='ko'?'hintKo':'hintEn'];}
   toggle.textContent=getWord('toggle');document.getElementById('graphics-title').textContent=getWord('title');document.getElementById('graphics-note').textContent=getWord('note');document.getElementById('graphics-meaning').textContent=getWord('meaning');document.getElementById('graphics-reset').textContent=getWord('reset');document.getElementById('graphics-copy').textContent=getWord('copy');document.getElementById('close-graphics').setAttribute('aria-label',getWord('close'));sync();
  }
- setLanguage(lang);return {setLanguage};
+ setLanguage(lang);return {setLanguage,setSettings:apply};
 }

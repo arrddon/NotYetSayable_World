@@ -3,8 +3,8 @@ export const THEMES = [
   {id:'stability',en:'Stability',ko:'안정',color:'#dbe7ef'},
   {id:'freedom',en:'Freedom',ko:'자유',color:'#dbe7ef'},
   {id:'care',en:'Care',ko:'돌봄',color:'#dbe7ef'},
-  {id:'creativity',en:'Creativity',ko:'창의',color:'#dbe7ef'},
-  {id:'community',en:'Community',ko:'공동체',color:'#dbe7ef'},
+  {id:'possibility',en:'Possibility',ko:'가능성',color:'#dbe7ef'},
+  {id:'belonging',en:'Belonging',ko:'소속감',color:'#dbe7ef'},
 ];
 // Broad labels for known city surroundings; never infer a place from archive counts.
 export function cameraRegion({lng,lat,zoom}={}){
@@ -20,10 +20,10 @@ export function cameraRegion({lng,lat,zoom}={}){
   return {scope:'region',city:city?.id||null};
 }
 export const CITIES = [
-  {id:'london',en:'London',ko:'런던',center:[-.102,51.512],zoom:13.3,bearing:-27,pitch:43},
-  {id:'seoul',en:'Seoul',ko:'서울',center:[126.975,37.555],zoom:12.2,bearing:-22,pitch:42},
-  {id:'new-york',en:'New York',ko:'뉴욕',center:[-73.992,40.731],zoom:12.7,bearing:28,pitch:43},
-  {id:'paris',en:'Paris',ko:'파리',center:[2.35,48.855],zoom:12.7,bearing:-20,pitch:43},
+  {id:'london',en:'London',ko:'런던',center:[-.102,51.512],zoom:13.3,bearing:0,pitch:43},
+  {id:'seoul',en:'Seoul',ko:'서울',center:[126.975,37.555],zoom:12.2,bearing:0,pitch:42},
+  {id:'new-york',en:'New York',ko:'뉴욕',center:[-73.992,40.731],zoom:12.7,bearing:0,pitch:43},
+  {id:'paris',en:'Paris',ko:'파리',center:[2.35,48.855],zoom:12.7,bearing:0,pitch:43},
 ];
 const themeIds=new Set(THEMES.map(t=>t.id));
 export function validateArchive(data){
@@ -33,7 +33,7 @@ export function validateArchive(data){
     if(!r||typeof r.id!=='string'||!r.id||ids.has(r.id))throw new Error('Invalid or duplicate record ID');
     ids.add(r.id);
     if(!Array.isArray(r.position)||r.position.length!==2||!r.position.every(Number.isFinite)||Math.abs(r.position[0])>180||Math.abs(r.position[1])>85.051129)throw new Error('Invalid future-home coordinates');
-    if(!themeIds.has(r.theme))throw new Error('Unknown theme');
+    if(!themeIds.has(r.theme)&&!(data.synthetic===true&&['creativity','community'].includes(r.theme)))throw new Error('Unknown theme');
     for(const time of ['past','present','future']){
       if(!Array.isArray(r[time])||!r[time].length||r[time].some(k=>!k||typeof k.id!=='string'||typeof k.ko!=='string'||typeof k.en!=='string'))throw new Error('Invalid interpreted keywords');
     }

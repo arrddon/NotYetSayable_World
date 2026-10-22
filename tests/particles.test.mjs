@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {roadParticles,formationParticles,packParticles,PARTICLE_LIMITS,INDICATOR_TILT} from '../dist/landscape.mjs';
 import {createBasemapStyle} from '../dist/basemap.mjs';
-import {cylinderMesh,indicatorAxis} from '../dist/indicators.mjs';
+import {cylinderMesh,indicatorAxis,indicatorParticleCount} from '../dist/indicators.mjs';
 
 const line={type:'Feature',properties:{class:'residential'},geometry:{type:'LineString',coordinates:[[-.11,51.51],[-.1,51.512],[-.09,51.51]]}};
 const mapFor=features=>({
@@ -73,11 +73,12 @@ test('surface density does not move metallic indicators, alter boundaries, or ch
  assert.deepEqual(features,original);
 });
 
-test('limited indicators favor larger formations and invalid coordinates never make geometry',()=>{
+test('full density covers small clusters and prioritises large columns; invalid coordinates never make geometry',()=>{
  const features=Array.from({length:12},(_,id)=>({...cluster(id,id+1),geometry:{type:'Point',coordinates:[id,51]}}));
  features.push({...cluster(90,999),geometry:{type:'Point',coordinates:[NaN,51]}});
  const result=formationParticles(features,{mobile:true,pillarDensity:2});
- assert.deepEqual(result.indicators.map(p=>p.position[0]),[11,10,9]);
+ assert.deepEqual(result.indicators.map(p=>p.position[0]),[11,10,9,8,7,6,5,4,3,2,1,0]);
+ assert.ok(result.indicators[2].width>result.indicators[3].width);
  assert.equal(result.areas.features.filter(p=>p.properties.kind==='area').length,12);
  assert.ok(result.field.every(p=>p.color[2]>=p.color[1]&&p.color[1]>=p.color[0]));
 });
@@ -85,10 +86,23 @@ test('limited indicators favor larger formations and invalid coordinates never m
 test('broad indicators share a gentle rightward lean, start below terrain, and remain at overview zoom',()=>{
  const features=Array.from({length:20},(_,id)=>cluster(id,id*5));
  const {indicators}=formationParticles(features,{mobile:true});
- assert.ok(indicators.length>0&&indicators.length<=3);
- assert.ok(indicators.every(p=>p.tilt===INDICATOR_TILT&&p.tilt>0&&p.width<=30&&p.reach>1&&p.height<0));
+ assert.ok(indicators.length>3&&indicators.length<=20);
+ assert.ok(indicators.every(p=>p.tilt===INDICATOR_TILT&&p.tilt>0&&p.width<=39&&p.reach>1&&p.height<0));
  const overview=formationParticles(features,{zoom:2});
  assert.ok(overview.indicators.length>0&&overview.indicators.every(p=>p.width>0&&p.reach>0));
+});
+
+test('near-complete point coverage retains a bounded total particle load as the number of pillars grows',()=>{
+ const points=Array.from({length:196},(_,id)=>({type:'Feature',geometry:{type:'Point',coordinates:[id%170,40]},properties:{id:'unit-'+id}}));
+ const all=formationParticles(points,{pillarDensity:2,pillarHeight:2.8,fieldDensity:.4});
+ assert.equal(all.indicators.length,196);
+ assert.ok(all.indicators[0].reach>3.3);assert.ok(all.indicators[6].reach>2.7);
+ assert.equal(formationParticles(points,{pillarDensity:.4,fieldDensity:.4}).indicators.length,40);
+ const mobile=formationParticles(points,{mobile:true,pillarDensity:2,fieldDensity:.4});assert.equal(mobile.indicators.length,160);
+ for(const narrow of [false,true])for(const count of [0,1,3,6,40,160,256]){
+  const perPillar=indicatorParticleCount(count,narrow);
+  assert.ok(perPillar>=0&&perPillar*count<=(narrow?1950:8400));
+ }
 });
 
 test('columns have actual circular 3D walls and closed ends with valid surface normals',()=>{

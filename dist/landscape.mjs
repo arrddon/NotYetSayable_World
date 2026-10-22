@@ -1,4 +1,4 @@
-export const PARTICLE_LIMITS=Object.freeze({desktop:{roads:48000,field:48000,indicators:6},mobile:{roads:16000,field:18000,indicators:3}});
+export const PARTICLE_LIMITS=Object.freeze({desktop:{roads:48000,field:48000,indicators:256},mobile:{roads:16000,field:18000,indicators:160}});
 export const INDICATOR_TILT=.22;
 export function packParticles(points){
  const values=new Float32Array(points.length*8),radians=Math.PI/180;
@@ -121,7 +121,7 @@ export function roadParticles(map,{mobile=false,density=1}={}){
  return points;
 }
 
-// Continuous geographic islands, sparse surface texture, and a few metallic indicators.
+// Continuous geographic islands, surface texture, and broadly distributed indicators.
 // The islands are decorative footprints, never measured participant boundaries.
 export function formationParticles(features,{zoom=13.3,pillarHeight=1.5,pillarDensity=1.3,fieldDensity=1.2,clusterSpread=1.15,mobile=false}={}){
  const field=[],areas=[],indicators=[],relief=[],regions=[],groups=new Map(),limits=mobile?PARTICLE_LIMITS.mobile:PARTICLE_LIMITS.desktop;
@@ -137,7 +137,8 @@ export function formationParticles(features,{zoom=13.3,pillarHeight=1.5,pillarDe
  const segments=Math.min(mobile?28:44,Math.max(8,Math.floor(reliefBudget/Math.max(1,reliefGroups)/6)));
  const rings=Math.min(18,Math.max(1,Math.floor(reliefBudget/Math.max(1,reliefGroups)/segments/6)));
  const ordered=[...groups].sort((a,b)=>(Number(b[1].properties?.point_count)||1)-(Number(a[1].properties?.point_count)||1)||a[0].localeCompare(b[0]));
- const indicatorCount=Math.min(limits.indicators,Math.max(1,Math.round((mobile?1.5:3)*pillarDensity)));
+ const coverage=Math.max(.15,Math.min(1,pillarDensity/2));
+ const indicatorCount=Math.min(limits.indicators,Math.max(1,Math.ceil(groups.size*coverage)));
  for(const [key,feature] of ordered){
   const center=feature.geometry.coordinates,properties=feature.properties||{};
   const count=Math.min(30000,Math.max(1,Number(properties.point_count)||1));
@@ -191,8 +192,10 @@ export function formationParticles(features,{zoom=13.3,pillarHeight=1.5,pillarDe
    field.push({position,height,color:aura?[.1,.22,1]:edge?[.78,.88,1]:bright?[.62+shade*.3,.72+shade*.23,1]:[.06+shade*.12,.17+shade*.23,.55+shade*.45],alpha:aura?.08:1,size:aura?22+random()*24:edge?4.2+random()*1.3:bright?3.8+random()*1.6:2.8+random()*1.4});
   }
   if(indicators.length<indicatorCount){
+   const prominent=indicators.length<(mobile?3:6);
    const overview=.3+.7*Math.max(0,Math.min(1,(zoom-2)/8));
-   indicators.push({position:[...center],radius,height:-30*scale,width:((mobile?13:26)+Math.min(mobile?17:28,Math.sqrt(count)*3.6))*overview,reach:pillarHeight/1.25,tilt:INDICATOR_TILT});
+   const width=((mobile?13:26)+Math.min(mobile?17:28,Math.sqrt(count)*3.6))*overview*(prominent?1.28:.48);
+   indicators.push({position:[...center],radius,height:-30*scale,width,reach:pillarHeight/.9*(prominent?1.08:.88),tilt:INDICATOR_TILT});
   }
  }
  return {field,areas:{type:'FeatureCollection',features:areas},indicators,regions,relief:new Float32Array(relief)};

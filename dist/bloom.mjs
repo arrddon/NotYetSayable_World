@@ -19,6 +19,7 @@ export class BloomPass {
     float grain(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
     void main(){vec3 scene=texture(u_scene,v_uv).rgb;vec3 bloom=texture(u_bloom,v_uv).rgb;
      float blue=smoothstep(.04,.26,scene.b-scene.r)*(1.0-smoothstep(.25,.7,scene.r));
+     scene.r+=(scene.b-scene.r)*blue*.035;scene.g*=1.0-blue*.06;
      scene.g+=(scene.b-scene.g)*u_cyan*.55*blue;scene.r*=1.0-u_cyan*.14*blue;
      scene=min(vec3(1.),scene*vec3(1.,1.02,1.05));
      float n=(grain(floor(gl_FragCoord.xy))-.5)*u_grain;

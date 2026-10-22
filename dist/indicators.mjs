@@ -11,6 +11,12 @@ export function cylinderMesh(segments=40){
  return new Float32Array(data);
 }
 
+// Share the previous total shell-particle allowance across all visible columns.
+export function indicatorParticleCount(count,mobile=false){
+ if(!Number.isFinite(count)||count<=0)return 0;
+ return Math.min(mobile?650:1400,Math.floor((mobile?1950:8400)/count));
+}
+
 // One common world-space axis for every cylinder, projected by the map's perspective camera.
 export function indicatorAxis(matrix,width,height,tilt=INDICATOR_TILT){
  const ax=matrix[0]*width,ay=matrix[1]*height,bx=matrix[4]*width,by=matrix[5]*height;
@@ -65,7 +71,7 @@ export class MetallicIndicators {
   if(!gl.getProgramParameter(this.program,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(this.program));
   gl.deleteShader(vs);gl.deleteShader(fs);this.buffer=gl.createBuffer();this.meshBuffer=gl.createBuffer();this.vao=gl.createVertexArray();this.scene=gl.createTexture();
   gl.bindVertexArray(this.vao);gl.bindBuffer(gl.ARRAY_BUFFER,this.meshBuffer);
-  const mesh=cylinderMesh();this.meshCount=mesh.length/6;gl.bufferData(gl.ARRAY_BUFFER,mesh,gl.STATIC_DRAW);
+  const mesh=cylinderMesh(24);this.meshCount=mesh.length/6;gl.bufferData(gl.ARRAY_BUFFER,mesh,gl.STATIC_DRAW);
   for(const [name,offset] of [['a_vertex',0],['a_normal',12]]){const loc=gl.getAttribLocation(this.program,name);gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,3,gl.FLOAT,false,24,offset);}
   gl.bindBuffer(gl.ARRAY_BUFFER,this.buffer);
   for(const [name,size,offset] of [['a_position',3,0],['a_width',1,12],['a_reach',1,16]]){const loc=gl.getAttribLocation(this.program,name);gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,size,gl.FLOAT,false,20,offset);gl.vertexAttribDivisor(loc,1);}
@@ -117,12 +123,14 @@ export class MetallicIndicators {
   gl.uniform1f(this.uniforms.u_time,this.time);gl.uniform2f(this.uniforms.u_resolution,width,height);gl.uniform1i(this.uniforms.u_scene,0);
   gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.depthMask(false);gl.enable(gl.CULL_FACE);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
   gl.cullFace(gl.FRONT);
-  gl.drawArraysInstanced(gl.TRIANGLES,0,this.meshCount,this.vertices.length/5);
+  // Retain translucent back walls for the prominent columns; smaller columns
+  // need only their front walls, avoiding a second full-screen overdraw pass.
+  gl.drawArraysInstanced(gl.TRIANGLES,0,this.meshCount,Math.min(this.vertices.length/5,canvas.clientWidth<=760?3:6));
   gl.cullFace(gl.BACK);
   gl.drawArraysInstanced(gl.TRIANGLES,0,this.meshCount,this.vertices.length/5);
   gl.disable(gl.CULL_FACE);gl.blendFunc(gl.SRC_ALPHA,gl.ONE);gl.useProgram(this.shell);gl.bindVertexArray(this.shellVao);
   const s=this.shellUniforms;gl.uniformMatrix4fv(s.u_matrix,false,matrix);gl.uniform3fv(s.u_axis,axis);gl.uniform1f(s.u_scale,scale);gl.uniform1f(s.u_height,extent);gl.uniform1f(s.u_time,this.time);gl.uniform1f(s.u_ratio,this.map.getPixelRatio());
-  gl.drawArraysInstanced(gl.POINTS,0,canvas.clientWidth<=760?650:1400,this.vertices.length/5);
+  gl.drawArraysInstanced(gl.POINTS,0,indicatorParticleCount(this.vertices.length/5,canvas.clientWidth<=760),this.vertices.length/5);
   gl.bindVertexArray(null);gl.disable(gl.CULL_FACE);gl.depthMask(true);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
  }
  onRemove(map,gl){gl.deleteTexture(this.scene);gl.deleteBuffer(this.buffer);gl.deleteBuffer(this.meshBuffer);gl.deleteVertexArray(this.vao);gl.deleteVertexArray(this.shellVao);gl.deleteProgram(this.program);gl.deleteProgram(this.shell);}

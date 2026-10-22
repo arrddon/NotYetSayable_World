@@ -1,0 +1,14 @@
+#exhibition-status { position: fixed; left: 16px; top: 15px; z-index: 100; max-width: min(70vw, 520px); padding: 7px 10px; color: #fff; background: #032363d9; font: 11px/1.5 'Consolas', ui-monospace, monospace; pointer-events: none; }
+#exhibition-status[hidden] { display: none; }
+.exhibition-locked .atlas { pointer-events: none; }
+html[data-exhibition="display"] .top-nav,
+html[data-exhibition="display"] .map-controls,
+html[data-exhibition="display"] .zoom-panel,
+html[data-exhibition="display"] #graphics-panel,
+html[data-exhibition="display"] #clear-selection,
+html[data-exhibition="display"] #refresh-data,
+html[data-exhibition="display"] #empty-reset { display: none !important; }
+html[data-exhibition="display"] .archive-panel,
+html[data-exhibition="display"] #map { pointer-events: none; }
+html[data-exhibition="display"] .prior-row:disabled { opacity: 1; color: inherit; cursor: default; }
+html[data-exhibition="display"] .theme-ranking.has-filter .prior-row:not(.active) { opacity: .4; }

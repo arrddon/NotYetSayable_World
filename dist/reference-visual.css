@@ -12,6 +12,7 @@ body, button, input, select, textarea, .maplibregl-map, .maplibregl-ctrl-attrib,
   font-family: var(--sans);
 }
 body { font-size: 16px; }
+body, .atlas, #map { background: #081144; }
 #map { right: 0; }
 .map-shade {
   background: linear-gradient(90deg, transparent 48%, rgba(1, 15, 49, .06) 60%, rgba(1, 13, 44, .86) 76%, #020e30 100%),

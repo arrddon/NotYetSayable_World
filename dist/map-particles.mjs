@@ -1,15 +1,13 @@
-// Re-sample the ordinary map framebuffer on the GPU. No pixel readback or road re-sampling.
+// Re-sample map details as an overlay. Keep the actual basemap underneath it.
 export class MapParticleSurface {
- constructor(density=1){this.id='map-particle-surface';this.type='custom';this.renderingMode='2d';this.density=density;this.regions=[];this.time=0;this.lastTime=null;}
+ constructor(density=1){this.id='map-particle-surface';this.type='custom';this.renderingMode='2d';this.density=density;this.regions=[];this.time=0;this.lastTime=null;this.regionsDirty=true;this.regionsA=new Float32Array(48);this.regionsB=new Float32Array(48);this.regionCount=0;}
  onAdd(map,gl){
   this.map=map;
+  this.viewChanged=()=>{this.regionsDirty=true;};map.on('move',this.viewChanged);map.on('resize',this.viewChanged);
   const shader=(type,source)=>{const s=gl.createShader(type);gl.shaderSource(s,source);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));return s;};
   const program=(vs,fs,names)=>{
    const v=shader(gl.VERTEX_SHADER,vs),f=shader(gl.FRAGMENT_SHADER,fs),p=gl.createProgram();gl.attachShader(p,v);gl.attachShader(p,f);gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(p));gl.deleteShader(v);gl.deleteShader(f);return {program:p,uniforms:Object.fromEntries(names.map(n=>[n,gl.getUniformLocation(p,n)]))};
   };
-  this.background=program(`#version 300 es
-   void main(){vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2));gl_Position=vec4(p*2.-1.,0.,1.);}`,`#version 300 es
-   precision highp float;out vec4 fragColor;void main(){fragColor=vec4(.006,.025,.12,1.);}`,[]);
   this.points=program(`#version 300 es
    precision highp float;uniform sampler2D u_map;uniform vec2 u_grid;uniform vec2 u_texel;uniform float u_ratio;uniform float u_time;
    uniform int u_regionCount;uniform vec4 u_regionsA[12];uniform vec4 u_regionsB[12];
@@ -35,6 +33,8 @@ export class MapParticleSurface {
     for(int i=0;i<12;i++){
      if(i>=u_regionCount)break;
      vec2 delta=uv-u_regionsA[i].xy,local=vec2(dot(delta,u_regionsA[i].zw),dot(delta,u_regionsB[i].xy));
+     // The contour plus its rim fits inside this box. Skip trigonometry elsewhere.
+     if(any(greaterThan(abs(local),vec2(1.1))))continue;
      float angle=atan(local.y,local.x),phase=u_regionsB[i].z;
      float contour=.82+.11*sin(angle*3.+phase)+.065*sin(angle*7.-phase)+.025*sin(angle*13.+phase);
      float d=length(local)/contour;
@@ -44,40 +44,46 @@ export class MapParticleSurface {
     color=mix(color,chrome,interior*.32+rim*.6);
     gl_PointSize+=rim*u_ratio;
     color=mix(color,vec3(.82,.91,1.),glitch*bright*.22);
-    v_color=vec4(color,(.42+bright*.47)*(.92+sin(u_time*.7+id)*.08));
+    // Flat background pixels contribute no particles; roads and region details do.
+    float coverage=max(bright,interior*.2+rim*.55);
+    v_color=vec4(color,coverage*(.28+bright*.32)*(.92+sin(u_time*.7+id)*.08));
    }`,`#version 300 es
    precision highp float;in vec4 v_color;out vec4 fragColor;
-   void main(){if(max(abs(gl_PointCoord.x-.5),abs(gl_PointCoord.y-.5))>.48)discard;fragColor=v_color;}`,['u_map','u_grid','u_texel','u_ratio','u_time','u_regionCount','u_regionsA[0]','u_regionsB[0]']);
+   void main(){if(v_color.a<.01||max(abs(gl_PointCoord.x-.5),abs(gl_PointCoord.y-.5))>.48)discard;fragColor=v_color;}`,['u_map','u_grid','u_texel','u_ratio','u_time','u_regionCount','u_regionsA[0]','u_regionsB[0]']);
   this.vao=gl.createVertexArray();this.texture=gl.createTexture();
  }
  setDensity(value){if(value!==this.density){this.density=value;this.map?.triggerRepaint();}}
- setRegions(regions){this.regions=regions.slice(0,12);this.map?.triggerRepaint();}
+ setRegions(regions){this.regions=regions.slice(0,12);this.regionsDirty=true;this.map?.triggerRepaint();}
  setAnimated(){this.lastTime=null;}
  render(gl){
   const width=gl.drawingBufferWidth,height=gl.drawingBufferHeight,canvas=this.map.getCanvas(),mobile=canvas.clientWidth<=760;
   gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,this.texture);
   if(this.width!==width||this.height!==height){
    this.width=width;this.height=height;
+   this.regionsDirty=true;
    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,width,height,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
   }
   gl.copyTexSubImage2D(gl.TEXTURE_2D,0,0,0,0,0,width,height);
   gl.bindVertexArray(this.vao);gl.disable(gl.DEPTH_TEST);gl.depthMask(false);gl.disable(gl.CULL_FACE);gl.disable(gl.STENCIL_TEST);gl.disable(gl.SCISSOR_TEST);gl.disable(gl.BLEND);
-  gl.useProgram(this.background.program);gl.drawArrays(gl.TRIANGLES,0,3);
   const budget=mobile?42000:180000,step=Math.max((mobile?3:2.35)/Math.sqrt(this.density),Math.sqrt(canvas.clientWidth*canvas.clientHeight/budget));
   const columns=Math.max(1,Math.floor(canvas.clientWidth/step)),rows=Math.max(1,Math.floor(canvas.clientHeight/step));
   const p=this.points,now=performance.now();if(this.lastTime!==null)this.time+=(now-this.lastTime)/1000;this.lastTime=now;
-  const a=new Float32Array(48),b=new Float32Array(48);let count=0;
-  for(const region of this.regions){
+  const a=this.regionsA,b=this.regionsB;
+  if(this.regionsDirty){
+   a.fill(0);b.fill(0);let count=0;
+   for(const region of this.regions){
    const [lng,lat]=region.position,center=this.map.project(region.position),east=this.map.project([lng+region.radius/(111320*Math.cos(lat*Math.PI/180)),lat]),north=this.map.project([lng,lat+region.radius/111320]);
    const ex=(east.x-center.x)/canvas.clientWidth,ey=-(east.y-center.y)/canvas.clientHeight,nx=(north.x-center.x)/canvas.clientWidth,ny=-(north.y-center.y)/canvas.clientHeight,det=ex*ny-nx*ey;
    if(!Number.isFinite(det)||Math.abs(det)<1e-12)continue;
    a.set([center.x/canvas.clientWidth,1-center.y/canvas.clientHeight,ny/det,-nx/det],count*4);b.set([-ey/det,ex/det,region.phase,0],count*4);count++;
+   }
+   this.regionCount=count;this.regionsDirty=false;
   }
   gl.useProgram(p.program);gl.uniform1i(p.uniforms.u_map,0);gl.uniform2f(p.uniforms.u_grid,columns,rows);gl.uniform2f(p.uniforms.u_texel,1/width,1/height);gl.uniform1f(p.uniforms.u_ratio,this.map.getPixelRatio());gl.uniform1f(p.uniforms.u_time,this.time);
-  gl.uniform1i(p.uniforms.u_regionCount,count);gl.uniform4fv(p.uniforms['u_regionsA[0]'],a);gl.uniform4fv(p.uniforms['u_regionsB[0]'],b);
-  gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE);gl.drawArrays(gl.POINTS,0,columns*rows);
+  gl.uniform1i(p.uniforms.u_regionCount,this.regionCount);gl.uniform4fv(p.uniforms['u_regionsA[0]'],a);gl.uniform4fv(p.uniforms['u_regionsB[0]'],b);
+  gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.drawArrays(gl.POINTS,0,columns*rows);
   gl.bindVertexArray(null);gl.depthMask(true);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
  }
- onRemove(map,gl){gl.deleteProgram(this.background.program);gl.deleteProgram(this.points.program);gl.deleteTexture(this.texture);gl.deleteVertexArray(this.vao);}
+ onRemove(map,gl){map.off('move',this.viewChanged);map.off('resize',this.viewChanged);gl.deleteProgram(this.points.program);gl.deleteTexture(this.texture);gl.deleteVertexArray(this.vao);}
 }

@@ -35,9 +35,21 @@ test('manifest file paths cannot navigate outside the public data directory',()=
  for(const path of ['https://elsewhere.test/data.json','../data/private.json','data/../private.json','data/sub/file.json','data/a..json'])assert.equal(safeDataPath(path),false);
 });
 test('generated demo is explicitly synthetic, valid, and contains no participant originals',async()=>{
- const manifest=JSON.parse(await readFile(new URL('../dist/data/manifest.json',import.meta.url)));
- const archive=JSON.parse(await readFile(new URL('../dist/'+manifest.file,import.meta.url)));
- validateArchive(archive);assert.equal(archive.version,manifest.version);assert.equal(archive.synthetic,true);
+ const archive=JSON.parse(await readFile(new URL('../dist/data/archive.demo-20261021-01.json',import.meta.url)));
+ validateArchive(archive);assert.equal(archive.synthetic,true);
  assert.equal(archive.locationMeaning,'desired-future-home');assert.equal(archive.records.length,302);
  const encoded=JSON.stringify(archive);for(const name of ['raw_response','translated_response','image_path','service_role'])assert.equal(encoded.includes(name),false);
+});
+
+test('the active published manifest points to a valid archive with matching version and explicit provenance',async()=>{
+ const manifest=JSON.parse(await readFile(new URL('../dist/data/manifest.json',import.meta.url)));
+ assert.equal(safeDataPath(manifest.file),true);
+ const archive=JSON.parse(await readFile(new URL('../dist/'+manifest.file,import.meta.url)));
+ validateArchive(archive);assert.equal(archive.version,manifest.version);
+ assert.equal(archive.synthetic,manifest.synthetic);assert.equal(typeof archive.synthetic,'boolean');
+ const recordFields=new Set(['id','position','theme','city','area','past','present','future']);
+ for(const record of archive.records){
+  assert.ok(Object.keys(record).every(key=>recordFields.has(key)));
+  for(const time of ['past','present','future'])for(const word of record[time])assert.deepEqual(Object.keys(word).sort(),['en','id','ko']);
+ }
 });

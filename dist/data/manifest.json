@@ -1,7 +1,9 @@
 {
   "schemaVersion": 1,
-  "version": "demo-20261021-01",
-  "file": "data/archive.demo-20261021-01.json",
-  "updatedAt": "2026-10-21T12:00:00.000Z",
-  "synthetic": true
+  "version": "live-d96e76fdfe28252c47465894",
+  "file": "data/archive.live-d96e76fdfe28252c47465894.json",
+  "updatedAt": "2026-10-22T15:16:20.113Z",
+  "synthetic": false,
+  "recordCount": 205,
+  "sourceRevision": "8b569ab5d5bef79feea141999b0c531c0cfbdc45e90cd5ff0e695520cba1ae48"
 }

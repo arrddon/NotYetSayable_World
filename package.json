@@ -6,6 +6,9 @@
   "description": "Static, keyword-led prototype of the Not Yet Sayable archive.",
   "scripts": {
     "dev": "node scripts/serve.mjs",
+    "exhibition": "node scripts/exhibition-server.mjs",
+    "archive:publish": "node scripts/publish-archive.mjs",
+    "archive:watch": "node scripts/publish-archive.mjs --watch",
     "test": "node --test tests/*.test.mjs",
     "check": "node --check dist/app.mjs && node --test tests/*.test.mjs",
     "demo-data": "node scripts/generate-demo.mjs"
